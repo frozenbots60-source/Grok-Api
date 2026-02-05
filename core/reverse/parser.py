@@ -1,5 +1,5 @@
 from re        import findall, search
-from json      import load, dump
+from json      import load, dump, loads
 from base64    import b64decode
 from typing    import Optional
 from curl_cffi import requests
@@ -29,12 +29,17 @@ class Parser:
             cls._grok_mapping_loaded = True
     
     @staticmethod
-    def parse_values(html: str, loading: str = "loading-x-anim-0", scriptId: str = "") -> tuple[str, Optional[str]]:
+    def parse_values(html: str, loading: int = 0, scriptId: str = "") -> tuple[str, Optional[str]]:
 
         Parser._load__xsid_mapping()
         
-        all_d_values = findall(r'"d":"(M[^"]{200,})"', html)
-        svg_data = all_d_values[int(loading.split("loading-x-anim-")[1])]
+        d_values = loads(findall(r'\[\[{"color".*?}\]\]', html)[0])[loading]
+        svg_data = "M 10,30 C" + " C".join(
+            f" {item['color'][0]},{item['color'][1]} {item['color'][2]},{item['color'][3]} {item['color'][4]},{item['color'][5]}"
+            f" h {item['deg']}"
+            f" s {item['bezier'][0]},{item['bezier'][1]} {item['bezier'][2]},{item['bezier'][3]}"
+            for item in d_values
+        )
         
         if scriptId:
             
@@ -60,11 +65,11 @@ class Parser:
 
     
     @staticmethod
-    def get_anim(html:  str, verification: str = "grok-site-verification") -> tuple[str, str]:
+    def get_anim(html:  str, verification: str = "grok-site-verification") -> tuple[str, int]:
         
         verification_token: str = Utils.between(html, f'"name":"{verification}","content":"', '"')
         array: list = list(b64decode(verification_token))
-        anim: str = "loading-x-anim-" + str(array[5] % 4)
+        anim: int = int(array[5] % 4)
 
         return verification_token, anim
     
